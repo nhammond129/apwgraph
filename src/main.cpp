@@ -18,6 +18,53 @@
 
 #include <pipewire/pipewire.h>
 
+static void registry_event_global(void* data, uint32_t id, uint32_t permissions, const char* type, uint32_t version, const struct spa_dict* props) {
+    printf("global: %u %s/%d\n", id, type, version);
+}
+
+static void registry_event_global_remove(void* data, uint32_t id) {
+    printf("global remove: %u\n", id);
+}
+
+static const struct pw_registry_events registry_events = {
+    .version = PW_VERSION_REGISTRY_EVENTS,
+    .global = registry_event_global,
+};
+
+struct roundtrip_data {
+    int pending;
+    struct pw_main_loop* loop;
+};
+
+static void on_core_done(void* data, uint32_t id, int seq) {
+    struct roundtrip_data* d = static_cast<roundtrip_data*>(data);
+
+    if (id == PW_ID_CORE && seq == d->pending) {
+        pw_main_loop_quit(d->loop);
+    }
+}
+
+static void roundtrip(struct pw_core* core, struct pw_main_loop* loop) {
+    static const struct pw_core_events core_events = {
+        .version = PW_VERSION_CORE_EVENTS,
+        .done = on_core_done,
+    };
+
+    struct roundtrip_data d = { .loop = loop };
+    struct spa_hook core_listener;
+    int err;
+
+
+    pw_core_add_listener(core, &core_listener, &core_events, &d);
+
+    d.pending = pw_core_sync(core, PW_ID_CORE, 0);
+
+    if ((err = pw_main_loop_run(loop)) < 0)
+        fprintf(stderr, "pw_main_loop_run error: %s\n", strerror(err));
+
+    spa_hook_remove(&core_listener);
+}
+
 // Main code
 int main(/*int argc, char** argv*/) {
     // Setup SDL
@@ -67,6 +114,14 @@ int main(/*int argc, char** argv*/) {
 
     // pipewire stuff
     pw_init(nullptr, nullptr);  // argc, argv
+    struct pw_main_loop* loop = pw_main_loop_new(nullptr);
+    struct pw_context* context = pw_context_new(pw_main_loop_get_loop(loop), nullptr, 0);
+    struct pw_core* core = pw_context_connect(context, nullptr, 0);
+    struct pw_registry* registry = pw_core_get_registry(core, PW_VERSION_REGISTRY, 0);
+    struct spa_hook registry_listener;
+    spa_zero(registry_listener);  // needed???
+
+    pw_registry_add_listener(registry, &registry_listener, &registry_events, nullptr);
 
     fprintf(stdout, "Compiled with pipewire %s\n", pw_get_headers_version());
     fprintf(stdout, "Linked with pipewire %s\n\n", pw_get_library_version());
@@ -80,19 +135,19 @@ int main(/*int argc, char** argv*/) {
         // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
         // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
+        while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
                 done = true;
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window))
                 done = true;
         }
-        if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED)
-        {
+        if (SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) {
             SDL_Delay(10);
             continue;
         }
+
+        roundtrip(core, loop);
 
         // Start the Dear ImGui frame
         ImGui_ImplSDLRenderer3_NewFrame();
@@ -146,6 +201,11 @@ int main(/*int argc, char** argv*/) {
     }
 
     // Cleanup
+    pw_proxy_destroy((struct pw_proxy*)registry);
+    pw_core_disconnect(core);
+    pw_context_destroy(context);
+    pw_main_loop_destroy(loop);
+
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
