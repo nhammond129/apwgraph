@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 ## get external dependencies
 add_subdirectory("extern/")
@@ -17,7 +18,8 @@ include_directories(${pw_INCLUDE_DIRS})
 
 ## Create main executable
 add_executable(main
-	src/main.cpp
+	"src/main.cpp"
+	"src/pw_interface.hpp"
 )
 target_include_directories(main
 	PRIVATE
