@@ -5,13 +5,13 @@ I love the utility and concept of `qpwgraph` but I have some mild gripes with th
 
 
 ## Progress
-[x] slap together dependencies  
-[ ] do a pipewire  
-  [x] connect to daemon  
-  [x] enumerate objects and get events  
-  [ ] save intermediate state and dump to GUI  
-[ ] make ui do things  
-  [ ] make/break connections  
+- [x] slap together dependencies  
+- [ ] do a pipewire  
+- [x] connect to daemon  
+  - [x] enumerate objects and get events  
+  - [ ] save intermediate state and dump to GUI  
+- [ ] make ui do things  
+- [ ] make/break connections  
 
 ## Stretch Goals
 - throw it on the AUR  
